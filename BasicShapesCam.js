@@ -67,7 +67,7 @@ var g_modelMatrix;
 var g_viewMatrix;
 var g_projMatrix;
 
-var g_currentAngle;
+var g_currentAngle = 0;
 
 function main() {
 	//==============================================================================
@@ -131,7 +131,7 @@ function main() {
 	// Start drawing: create 'tick' variable whose value is this function:
 	var tick = function () {
 		animate();  // Update the rotation angle
-
+		
 		drawAll();   // Draw shapes
 
 		// report current angle on console
@@ -141,7 +141,7 @@ function main() {
 	};
 	tick();							// start (and continue) animation: draw current image
 
-
+	
 	// resize the canvas to fill browser window dynamically
 	// window.addEventListener('resize', resizeCanvas, false);
 	// resizeCanvas();
@@ -621,14 +621,14 @@ function drawAll() {
 	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
 	gl.viewport(0, 0, gl.drawingBufferWidth / 2, gl.drawingBufferHeight / 2);
-	drawShapes(gl, g_node_count, g_currentAngle, g_modelMatrix, g_u_ModelMatrix);   // Draw shapes
-
+	drawShapes();   // Draw shapes
+	
 	gl.viewport(gl.drawingBufferWidth / 2, 0, gl.drawingBufferWidth / 2, gl.drawingBufferHeight / 2);
-	drawShapes(gl, g_node_count, g_currentAngle, g_modelMatrix, g_u_ModelMatrix);   // Draw shapes
-
+	drawShapes();   // Draw shapes
+	
 	gl.viewport(0, gl.drawingBufferHeight / 2, gl.drawingBufferWidth / 2, gl.drawingBufferHeight / 2);
-	drawShapes(gl, g_node_count, g_currentAngle, g_modelMatrix, g_u_ModelMatrix);   // Draw shapes
-
+	drawShapes();   // Draw shapes
+	
 
 }
 
@@ -710,7 +710,6 @@ function drawShapes() {
 var g_last = Date.now();
 
 function animate() {
-
 	//==============================================================================
 	// Calculate the elapsed time
 	var now = Date.now();
