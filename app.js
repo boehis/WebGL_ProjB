@@ -40,6 +40,11 @@ var FSHADER_SOURCE =
 	'}\n';
 
 // Global Variables
+var g_fov_angle = 35.0
+var g_fov_ner = 1.0
+var g_fov_far = 50.0
+
+
 var ANGLE_STEP = 45.0;		// Rotation angle rate (degrees/second)
 var floatsPerVertex = 7;	// # of Float32Array elements used for each vertex
 // (x,y,z,w)position + (r,g,b)color
@@ -55,6 +60,9 @@ var frog_leg_start;
 var frog_eye_start
 var car_start;
 var wheel_start;
+var coordinate_start;
+var plane_start;
+var propeller_start;
 
 var gndVerts;
 var frog_body_verts;
@@ -62,6 +70,9 @@ var frog_leg_verts;
 var frog_eye_verts;
 var car_verts;
 var wheel_verts;
+var coordinate_verts;
+var plane_verts;
+var propeller_verts;
 
 var g_u_MvpMatrix;
 var g_u_ViewMatrix;
@@ -97,6 +108,12 @@ var g_steer_angle = 0;
 var g_wheelspeed_max_rate = 1000;
 var g_wheelspeed_rate = 100;
 var g_wheel_angle = 0;
+
+var g_plane_x=0;
+var g_plane_y=0;
+var g_plane_t=0;
+var g_plane_speed = 0.001;
+var g_plane_angle = 0;
 
 
 function main() {
@@ -192,8 +209,13 @@ function initVertexBuffer() {
 	frog_leg_verts = make_frog_leg_vertecies();
 	frog_eye_verts = make_frog_eye_vertecies();
 
-  car_verts = get_car_vertecies()
-  wheel_verts = get_wheel_vertecies(100, 100, 8)
+  car_verts = get_car_vertecies();
+  wheel_verts = get_wheel_vertecies(100, 100, 8);
+
+	coordinate_verts = make_coordinate_verts();
+
+	plane_verts = make_plane_verts()
+	propeller_verts = make_propeller_vertecies()
 
 	
 	// how many floats total needed to store all shapes?
@@ -204,6 +226,9 @@ function initVertexBuffer() {
 		+ frog_eye_verts.length
 		+ car_verts.length
 		+ wheel_verts.length
+		+ coordinate_verts.length
+		+ plane_verts.length
+		+ propeller_verts.length
 		);
 
 	// How many vertices total?
@@ -235,6 +260,18 @@ function initVertexBuffer() {
 	wheel_start = i;						// next we'll store the ground-plane;
 	for (j = 0; j < wheel_verts.length; i++, j++) {
 		colorShapes[i] = wheel_verts[j];
+	}
+	coordinate_start = i;						// next we'll store the ground-plane;
+	for (j = 0; j < coordinate_verts.length; i++, j++) {
+		colorShapes[i] = coordinate_verts[j];
+	}
+	plane_start = i;						// next we'll store the ground-plane;
+	for (j = 0; j < plane_verts.length; i++, j++) {
+		colorShapes[i] = plane_verts[j];
+	}
+	propeller_start = i;						
+	for (j = 0; j < propeller_verts.length; i++, j++) {
+		colorShapes[i] = propeller_verts[j];
 	}
 	// Create a buffer object on the graphics hardware:
 	var shapeBufferHandle = gl.createBuffer();
@@ -310,8 +347,8 @@ function drawAll() {
 	// Clear <canvas>  colors AND the depth buffer
 	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+	
 	var aspect = gl.canvas.width / 2 /gl.canvas.height
-	var angle = 35.0
 	var aim = calcAimPoint();
 	g_viewMatrix.setLookAt(
 		g_eye_point_v[0],
@@ -324,13 +361,13 @@ function drawAll() {
 		g_up_v[1],
 		g_up_v[2]);
 	
-	g_projMatrix.setPerspective(angle, aspect ,1.0, 100.0);
+	g_projMatrix.setPerspective(g_fov_angle, aspect ,g_fov_ner, g_fov_far);
 	gl.viewport(0, 0, gl.canvas.width / 2, gl.canvas.height);
 	drawShapes();   // Draw shapes
 	
-	var width = 3.0
+	var width = Math.tan(g_fov_angle/360.0*Math.PI)*(g_fov_far-g_fov_ner)/3
 	var height = width / aspect
-	g_projMatrix.setOrtho(-width/2,width/2, -height/2, height/2, 0.0, 100.0)
+	g_projMatrix.setOrtho(-width,width, -height, height, g_fov_ner, g_fov_far)
 	gl.viewport(gl.canvas.width / 2, 0, gl.canvas.width / 2, gl.canvas.height);
 	drawShapes();   // Draw shapes
 }
@@ -344,7 +381,6 @@ function calcAimPoint() {
 
 function drawShapes() {
 	g_modelMatrix.setIdentity();    // DEFINE 'world-space' coords.
-
 	//FROG
 	pushMatrix(g_modelMatrix)
 		g_modelMatrix.rotate(g_frog_pos, 0, 0, 1)
@@ -359,13 +395,27 @@ function drawShapes() {
 	
 	//CAR
 	pushMatrix(g_modelMatrix)
+	setMVPMatrix()
+	drawCoordinates()
   g_modelMatrix.translate(0,0, 0.1)
 	g_modelMatrix.rotate(90,1,0,0)
 	g_modelMatrix.rotate(90,0,1,0)
   g_modelMatrix.scale(0.6, 0.6, 0.6)
+	
+	setMVPMatrix()
   drawCar(g_wheel_angle, g_steer_angle)
   g_modelMatrix = popMatrix(g_modelMatrix)
 	//==============================================================
+
+	//PLANE
+	pushMatrix(g_modelMatrix)
+	g_modelMatrix.translate(g_plane_x,g_plane_y,1.5)
+	g_modelMatrix.rotate(90,1,0,0)
+	g_modelMatrix.rotate(g_plane_angle,0,1,0)
+	g_modelMatrix.scale(0.6, 0.6, 0.6);
+	drawPlane()
+
+	g_modelMatrix = popMatrix(g_modelMatrix)
 	
 
 	//GROUND
@@ -379,11 +429,46 @@ function drawShapes() {
 	g_modelMatrix = popMatrix();  // RESTORE 'world' drawing coords.
 	//===========================================================
 }
+
+function drawPlane() {
+	setMVPMatrix()
+	gl.drawArrays(gl.TRIANGLES, plane_start/floatsPerVertex, plane_verts.length/floatsPerVertex)
+
+	pushMatrix(g_modelMatrix)
+	g_modelMatrix.rotate(g_currentAngle*5, 1,0,0)
+	drawPropellers()
+	g_modelMatrix = popMatrix(g_modelMatrix)
+}
+
+function drawPropellers() {
+	pushMatrix(g_modelMatrix)
+	drawPropeller()
+	g_modelMatrix.rotate(90,1,0,0)
+	drawPropeller()
+	g_modelMatrix.rotate(90,1,0,0)
+	drawPropeller()
+	g_modelMatrix.rotate(90,1,0,0)
+	drawPropeller()
+	g_modelMatrix = popMatrix(g_modelMatrix)
+}
+
+function drawPropeller() {
+	pushMatrix(g_modelMatrix)
+	g_modelMatrix.scale(0.01,0.05,0.1)
+	g_modelMatrix.translate(0,0,-2)
+	setMVPMatrix()
+	gl.drawArrays(gl.TRIANGLE_STRIP, propeller_start/floatsPerVertex, propeller_verts.length / floatsPerVertex)
+
+	g_modelMatrix = popMatrix(g_modelMatrix)
+}
+
+function drawCoordinates() {
+	gl.drawArrays(gl.LINES, coordinate_start/floatsPerVertex, coordinate_verts.length / floatsPerVertex)
+}
+
 function drawCar(wheel_rot_angle, wheel_steer_angle) {
   pushMatrix(g_modelMatrix)
-
-  setMVPMatrix()
-  gl.drawArrays(gl.TRIANGLES, car_start/floatsPerVertex, car_verts.length / floatsPerVertex);
+	gl.drawArrays(gl.TRIANGLES, car_start/floatsPerVertex, car_verts.length / floatsPerVertex);
 
   //console.log(wheel_steer_angle)
   //TYRE FL
@@ -447,6 +532,8 @@ function drawCar(wheel_rot_angle, wheel_steer_angle) {
 function drawFrog(front_angle, back_angle) {
 
   setMVPMatrix()
+	
+	drawCoordinates()
   gl.drawArrays(gl.TRIANGLE_STRIP, frog_body_start/floatsPerVertex, 18);
 
   gl.drawArrays(gl.TRIANGLE_FAN, frog_body_start/floatsPerVertex + 18, 10);
@@ -497,6 +584,7 @@ function drawOneLeg(leg_angle) {
 function drawLeg() {
   
   setMVPMatrix()
+	
 	gl.drawArrays(gl.TRIANGLE_STRIP,
     frog_leg_start/floatsPerVertex, 18);
 
@@ -535,6 +623,8 @@ function drawFrogLeg(front_angle, back_angle) {
 }
 function drawEye() {
   setMVPMatrix()
+	
+	drawCoordinates()
 	gl.drawArrays(gl.TRIANGLE_STRIP,
     frog_eye_start/floatsPerVertex, 18);
 
@@ -604,6 +694,24 @@ function animate() {
   g_frog_leg_angle_back = 10 + g_angle_slider * Math.sin(a)
   g_frog_leg_angle_front = 10 + g_angle_slider * 0.5 * Math.sin(a)
   g_frog_height = (10 + 20 * Math.sin(a)) * 0.01
+
+
+	//PLANE
+	g_plane_t += elapsed * g_plane_speed*0.5
+	var oldx = g_plane_x
+	var oldy = g_plane_y
+	g_plane_x = Math.cos(g_plane_t)
+	g_plane_y = Math.sin(2*g_plane_t) / 2.0
+
+	var dirx = g_plane_x - oldx
+	var diry = g_plane_y - oldy
+	var olda = g_plane_angle
+	if(Math.abs(dirx) > elapsed * g_plane_speed*0.5* 0.001 ){ //only if dirx is above a threshhold can we use the value for calculation
+		g_plane_angle = Math.atan(diry/dirx) / Math.PI * 180
+		if(g_plane_x*g_plane_y <=0) {
+			g_plane_angle += 180
+		}		
+	}
 
 }
 
