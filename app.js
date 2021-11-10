@@ -53,6 +53,8 @@ var floatsPerVertex = 7;	// # of Float32Array elements used for each vertex
 var canvas;
 var gl;
 
+var key_codes = []
+
 var g_node_count;
 var gndStart;
 var frog_body_start;
@@ -63,6 +65,8 @@ var wheel_start;
 var coordinate_start;
 var plane_start;
 var propeller_start;
+var sphere_start;
+var torus_start;
 
 var gndVerts;
 var frog_body_verts;
@@ -73,6 +77,8 @@ var wheel_verts;
 var coordinate_verts;
 var plane_verts;
 var propeller_verts;
+var sphere_verts;
+var torus_verts;
 
 var g_u_MvpMatrix;
 var g_u_ViewMatrix;
@@ -82,13 +88,14 @@ var g_modelMatrix;
 var g_viewMatrix;
 var g_projMatrix;
 var g_mvpMatrix;
+var g_quatMatrix;
 
 var g_eye_point_v = [5.0,0.0,1.0];
 var g_up_v = [0.0,0.0,1.0];
 var g_theat = Math.PI;
 var g_aim_z = 0.0;
-var g_move_vel = 0.1;
-var g_turn_v = Math.PI / 90;
+var g_move_vel = 0.08;
+var g_turn_v = Math.PI / 120;
 var g_tilt_v = 0.01;
 
 var g_currentAngle = 0;
@@ -115,6 +122,15 @@ var g_plane_t=0;
 var g_plane_speed = 0.001;
 var g_plane_angle = 0;
 
+// Global vars for mouse click-and-drag for rotation.
+var isDrag=false;		// mouse-drag: true when user holds down mouse button
+var xMclik=0.0;			// last mouse button-down position (in CVV coords)
+var yMclik=0.0;   
+var xMdragTot=0.0;	// total (accumulated) mouse-drag amounts (in CVV coords).
+var yMdragTot=0.0;  
+
+var qNew = new Quaternion(0,0,0,1); // most-recent mouse drag's rotation
+var qTot = new Quaternion(0,0,0,1);	// 'current' orientation (made from qNew)
 
 function main() {
 	//==============================================================================
@@ -161,6 +177,7 @@ function main() {
 	g_viewMatrix = new Matrix4();  // The view matrix
 	g_projMatrix = new Matrix4();  // The projection matrix
 	g_mvpMatrix = new Matrix4();  // The projection matrix
+	g_quatMatrix = new Matrix4();
 
 	// Calculate the view matrix and the projection matrix
 	//modelMatrix.setTranslate(0.75, 0, 0);  // Translate 0.75 units along the positive x-axis
@@ -186,9 +203,9 @@ function main() {
 	resizeCanvas();
 
 	//MOUSE:
-	window.addEventListener("mousedown", myMouseDown);
-	window.addEventListener("mousemove", myMouseMove);
-	window.addEventListener("mouseup", myMouseUp);
+	canvas.onmousedown	=	function(ev){myMouseDown( ev)}; 
+	canvas.onmousemove = 	function(ev){myMouseMove( ev)};		
+	canvas.onmouseup = 		function(ev){myMouseUp(   ev)};
 
 	//KEY:
 	window.addEventListener("keydown", myKeyDown, false);
@@ -217,6 +234,9 @@ function initVertexBuffer() {
 	plane_verts = make_plane_verts()
 	propeller_verts = make_propeller_vertecies()
 
+	sphere_verts = makeSphere();
+	torus_verts = makeTorus()
+
 	
 	// how many floats total needed to store all shapes?
 	var mySiz = (
@@ -229,6 +249,8 @@ function initVertexBuffer() {
 		+ coordinate_verts.length
 		+ plane_verts.length
 		+ propeller_verts.length
+		+ sphere_verts.length
+		+ torus_verts.length
 		);
 
 	// How many vertices total?
@@ -272,6 +294,14 @@ function initVertexBuffer() {
 	propeller_start = i;						
 	for (j = 0; j < propeller_verts.length; i++, j++) {
 		colorShapes[i] = propeller_verts[j];
+	}
+	sphere_start = i;						
+	for (j = 0; j < sphere_verts.length; i++, j++) {
+		colorShapes[i] = sphere_verts[j];
+	}
+	torus_start = i;						
+	for (j = 0; j < torus_verts.length; i++, j++) {
+		colorShapes[i] = torus_verts[j];
 	}
 	// Create a buffer object on the graphics hardware:
 	var shapeBufferHandle = gl.createBuffer();
@@ -416,7 +446,7 @@ function drawShapes() {
 	drawPlane()
 
 	g_modelMatrix = popMatrix(g_modelMatrix)
-	
+	//===========================================================
 
 	//GROUND
 	pushMatrix(g_modelMatrix);  // SAVE world drawing coords.
@@ -428,10 +458,40 @@ function drawShapes() {
 		gndVerts.length / floatsPerVertex);	// draw this many vertices.
 	g_modelMatrix = popMatrix();  // RESTORE 'world' drawing coords.
 	//===========================================================
+
+	//Sphere&Torus
+	pushMatrix(g_modelMatrix)
+	g_modelMatrix.translate(0,-3,0)
+	g_modelMatrix.scale(0.6, 0.6, 0.6);
+	g_quatMatrix.setFromQuat(qTot.x, qTot.y, qTot.z, qTot.w)
+	g_modelMatrix.concat(g_quatMatrix)
+	drawSphereTours()
+
+	g_modelMatrix = popMatrix(g_modelMatrix)
+	//===========================================================
+	
+}
+
+function drawSphereTours() {
+
+	setMVPMatrix()
+	gl.drawArrays(gl.TRIANGLE_STRIP, torus_start/floatsPerVertex, torus_verts.length/floatsPerVertex)
+
+	pushMatrix(g_modelMatrix)
+	g_modelMatrix.rotate(g_currentAngle, 0,0,1)
+	g_modelMatrix.translate(1.0,0,0)
+	g_modelMatrix.rotate(g_currentAngle, 0,1,0)
+	g_modelMatrix.translate(1.1,0,0)
+	g_modelMatrix.rotate(g_currentAngle, 1,1,0)
+	g_modelMatrix.scale(0.7,0.7,0.7)
+	setMVPMatrix()
+	gl.drawArrays(gl.TRIANGLE_STRIP, sphere_start/floatsPerVertex, sphere_verts.length/floatsPerVertex)
+	g_modelMatrix = popMatrix(g_modelMatrix)
 }
 
 function drawPlane() {
 	setMVPMatrix()
+	drawCoordinates()
 	gl.drawArrays(gl.TRIANGLES, plane_start/floatsPerVertex, plane_verts.length/floatsPerVertex)
 
 	pushMatrix(g_modelMatrix)
@@ -706,61 +766,20 @@ function animate() {
 	var dirx = g_plane_x - oldx
 	var diry = g_plane_y - oldy
 	var olda = g_plane_angle
-	if(Math.abs(dirx) > elapsed * g_plane_speed*0.5* 0.001 ){ //only if dirx is above a threshhold can we use the value for calculation
+	if(Math.abs(dirx) > elapsed * g_plane_speed*0.5* 0.01 ){ //only if dirx is above a threshhold can we use the value for calculation
 		g_plane_angle = Math.atan(diry/dirx) / Math.PI * 180
 		if(g_plane_x*g_plane_y <=0) {
 			g_plane_angle += 180
 		}		
 	}
 
+
+	//Viewing direction
+	key_codes.forEach(animateViewMove)
+
 }
 
-//==================HTML Button Callbacks
-function nextShape() {
-	shapeNum += 1;
-	if (shapeNum >= shapeMax) shapeNum = 0;
-}
-
-function spinDown() {
-	ANGLE_STEP -= 25;
-}
-
-
-function moreFrogSpeed() {
-  //==============================================================================
-
-  g_frog_rate += 10;
-}
-
-function lessFrogSpeed() {
-  //==============================================================================
-  g_frog_rate -= 10;
-}
-
-var slider = false
-
-function frogFlexAngle(angle) {
-  slider = true
-  g_angle_slider = angle
-}
-
-
-function resizeCanvas() {
-	canvas.width = canvas.clientWidth;
-	canvas.height = canvas.clientHeight;
-	drawAll();
-}
-
-function myMouseDown(ev) {
-};
-
-function myMouseMove(ev) {
-};
-
-function myMouseUp(ev) {
-};
-
-function myKeyDown(kev) {
+function animateViewMove(key_code) {
 	
 	var eye_aim = calcAimPoint().map(function(item, index) {
 		return (item - g_eye_point_v[index]);
@@ -772,7 +791,7 @@ function myKeyDown(kev) {
 		return item*g_move_vel;
 	})
 	
-  switch (kev.code) {
+  switch (key_code) {
 
     //----------------Arrow keys------------------------
     case "ArrowLeft":
@@ -822,11 +841,131 @@ function myKeyDown(kev) {
     default:
       break;
   }
-
-	
 }
 
-function myKeyUp(kev) {
+//==================HTML Button Callbacks
+function nextShape() {
+	shapeNum += 1;
+	if (shapeNum >= shapeMax) shapeNum = 0;
+}
+
+function spinDown() {
+	ANGLE_STEP -= 25;
+}
+
+
+function moreFrogSpeed() {
+  //==============================================================================
+
+  g_frog_rate += 10;
+}
+
+function lessFrogSpeed() {
+  //==============================================================================
+  g_frog_rate -= 10;
+}
+
+var slider = false
+
+function frogFlexAngle(angle) {
+  slider = true
+  g_angle_slider = angle
+}
+
+
+function resizeCanvas() {
+	canvas.width = canvas.clientWidth;
+	canvas.height = canvas.clientHeight;
+	drawAll();
+}
+
+function myMouseDown(ev) {
+	var rect = ev.target.getBoundingClientRect();	// get canvas corners in pixels
+	var xp = ev.clientX - rect.left;									// x==0 at canvas left edge
+	var yp = canvas.height - (ev.clientY - rect.top);	// y==0 at canvas bottom edge
+
+	var x = (xp - canvas.width/2)  / 		// move origin to center of canvas and
+								(canvas.width/2);			// normalize canvas to -1 <= x < +1,
+	var y = (yp - canvas.height/2) /		//										 -1 <= y < +1.
+								(canvas.height/2);
+	
+	isDrag = true;											// set our mouse-dragging flag
+	xMclik = x;													// record where mouse-dragging began
+	yMclik = y;
+};
+
+function myMouseMove(ev) {
+	if(isDrag==false) return;
+
+	var rect = ev.target.getBoundingClientRect();	// get canvas corners in pixels
+	var xp = ev.clientX - rect.left;									// x==0 at canvas left edge
+	var yp = canvas.height - (ev.clientY - rect.top);	// y==0 at canvas bottom edge
+
+	var x = (xp - canvas.width/2)  / 		// move origin to center of canvas and
+								(canvas.width/2);			// normalize canvas to -1 <= x < +1,
+	var y = (yp - canvas.height/2) /		//										 -1 <= y < +1.
+								(canvas.height/2);
+								
+	xMdragTot += (x - xMclik);					// Accumulate change-in-mouse-position,&
+	yMdragTot += (y - yMclik);
+	
+	dragQuat(x - xMclik, y - yMclik);
+	
+	xMclik = x;													// Make NEXT drag-measurement from here.
+	yMclik = y;
+
+};
+
+function myMouseUp(ev) {
+
+	var rect = ev.target.getBoundingClientRect();	// get canvas corners in pixels
+	var xp = ev.clientX - rect.left;									// x==0 at canvas left edge
+	var yp = canvas.height - (ev.clientY - rect.top);	// y==0 at canvas bottom edge
+
+	var x = (xp - canvas.width/2)  / 		// move origin to center of canvas and
+								(canvas.width/2);			// normalize canvas to -1 <= x < +1,
+	var y = (yp - canvas.height/2) /		//										 -1 <= y < +1.
+								(canvas.height/2);
+
+	isDrag = false;											// CLEAR our mouse-dragging flag, and
+	
+	xMdragTot += (x - xMclik);
+	yMdragTot += (y - yMclik);
+
+	dragQuat(x - xMclik, y - yMclik);
+};
+
+function dragQuat(xdrag, ydrag) {
+	var qTmp = new Quaternion(0,0,0,1);
+	
+	var dist = Math.sqrt(xdrag*xdrag + ydrag*ydrag);
+
+	var aim_dir = calcAimPoint()
+	var lookat_dir = unitify(g_eye_point_v.map(function(item, index) {
+		return item - aim_dir[index]
+	}))
+	var x_dir = unitify(cartesian(g_up_v,lookat_dir)).map(function(item) {return item*(xdrag+0.0001)})
+	console.log(x_dir);
+	var y_dir = lookat_dir.map(function(item) {return item*(ydrag+0.0001)})
+
+	qNew.setFromAxisAngle(y_dir[1]-x_dir[1],-y_dir[0]+x_dir[0],y_dir[2]+x_dir[2], dist*150.0);
+	
+	qTmp.multiply(qNew,qTot);		
+
+		qTot.copy(qTmp);
+};
+
+function myKeyDown(key) {
+	if(key_codes.indexOf(key.code) == -1) {
+		key_codes.push(key.code)
+	} 
+}
+
+function myKeyUp(key) {
+	var index = key_codes.indexOf(key.code)
+	if(index != -1){
+		key_codes.splice(index,1)
+	}
 }
 
 function cartesian(a,b) {
