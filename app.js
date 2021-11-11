@@ -67,6 +67,7 @@ var plane_start;
 var propeller_start;
 var sphere_start;
 var torus_start;
+var pyra_start;
 
 var gndVerts;
 var frog_body_verts;
@@ -79,6 +80,7 @@ var plane_verts;
 var propeller_verts;
 var sphere_verts;
 var torus_verts;
+var pyra_verts;
 
 var g_u_MvpMatrix;
 var g_u_ViewMatrix;
@@ -237,6 +239,8 @@ function initVertexBuffer() {
 	sphere_verts = makeSphere();
 	torus_verts = makeTorus()
 
+	pyra_verts = make_pyramide_vertecies()
+
 	
 	// how many floats total needed to store all shapes?
 	var mySiz = (
@@ -251,6 +255,7 @@ function initVertexBuffer() {
 		+ propeller_verts.length
 		+ sphere_verts.length
 		+ torus_verts.length
+		+ pyra_verts.length
 		);
 
 	// How many vertices total?
@@ -302,6 +307,10 @@ function initVertexBuffer() {
 	torus_start = i;						
 	for (j = 0; j < torus_verts.length; i++, j++) {
 		colorShapes[i] = torus_verts[j];
+	}
+	pyra_start = i;						
+	for (j = 0; j < pyra_verts.length; i++, j++) {
+		colorShapes[i] = pyra_verts[j];
 	}
 	// Create a buffer object on the graphics hardware:
 	var shapeBufferHandle = gl.createBuffer();
@@ -373,6 +382,7 @@ function setMVPMatrix() {
 }
 
 function drawAll() {
+	drawCoordinates()
 	//==============================================================================
 	// Clear <canvas>  colors AND the depth buffer
 	gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -469,7 +479,36 @@ function drawShapes() {
 
 	g_modelMatrix = popMatrix(g_modelMatrix)
 	//===========================================================
+
+	//Pyramide
+	pushMatrix(g_modelMatrix)
+	g_modelMatrix.translate(-1,3,0)
+	g_modelMatrix.scale(0.6, 0.6, 0.6);
+	drawPyramides()
+	g_modelMatrix = popMatrix(g_modelMatrix)
+	//===========================================================
+}
+
+function drawPyramides() {
+	drawPyramide()
+
+	pushMatrix(g_modelMatrix)
+	g_modelMatrix.translate(0,0,1)
+	g_modelMatrix.rotate(180,1,0,0)
 	
+	g_modelMatrix.rotate(g_currentAngle,0,0,1)
+	g_modelMatrix.rotate(20,1,0,0)
+	g_modelMatrix.rotate(g_currentAngle,0,0,1)
+	
+	g_modelMatrix.translate(0,0,-1)
+	drawPyramide()
+  g_modelMatrix = popMatrix(g_modelMatrix)
+}
+
+
+function drawPyramide() {
+	setMVPMatrix()
+	gl.drawArrays(gl.TRIANGLES, pyra_start/floatsPerVertex, pyra_verts.length/floatsPerVertex)
 }
 
 function drawSphereTours() {
@@ -644,7 +683,7 @@ function drawOneLeg(leg_angle) {
 function drawLeg() {
   
   setMVPMatrix()
-	
+	drawCoordinates()
 	gl.drawArrays(gl.TRIANGLE_STRIP,
     frog_leg_start/floatsPerVertex, 18);
 
